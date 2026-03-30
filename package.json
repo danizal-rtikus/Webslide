@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.7",
+    "@supabase/supabase-js": "^2.100.1",
     "@types/lodash.debounce": "^4.0.9",
     "clsx": "^2.1.0",
     "framer-motion": "^11.0.8",
