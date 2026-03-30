@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { LogOut, User, Crown, ChevronDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface UserMenuProps {
   user: any;
@@ -10,6 +11,7 @@ interface UserMenuProps {
 export default function UserMenu({ user, profile }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -22,7 +24,9 @@ export default function UserMenu({ user, profile }: UserMenuProps) {
   }, []);
 
   const handleLogout = async () => {
+    setIsOpen(false);
     await supabase.auth.signOut();
+    navigate('/');
   };
 
   const isPro = profile?.role === 'pro';

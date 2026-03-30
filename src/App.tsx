@@ -454,7 +454,7 @@ function App() {
             <div className="flex items-center gap-4">
                {profile?.role === 'pro' && (<div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-2xl border border-indigo-100"><Crown size={16} /><span className="text-[10px] font-black uppercase">PRO</span></div>)}
                <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} />
-               <UserMenu user={session?.user} profile={profile} />
+               {session && <UserMenu user={session.user} profile={profile} />}
             </div>
           </header>
 
