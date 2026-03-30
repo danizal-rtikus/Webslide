@@ -30,7 +30,9 @@ import {
   Menu,
   X,
   Zap,
-  Crown
+  Crown,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { extractTextFromPDF } from './utils/pdfProcessor';
 import { 
@@ -68,18 +70,18 @@ const PROMPT_EXAMPLES = [
 ];
 
 // Helper Components
-function SidebarItem({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) {
+function SidebarItem({ icon, label, active = false, onClick, isDark }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void, isDark: boolean }) {
   return (
     <button 
       onClick={onClick}
       className={`
         w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group
         ${active 
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
-          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
+          ? (isDark ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-100') 
+          : (isDark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900')}
       `}
     >
-      <div className={`${active ? 'text-white' : 'text-slate-400 group-hover:text-indigo-600'} transition-colors`}>
+      <div className={`${active ? 'text-white' : (isDark ? 'text-slate-500 group-hover:text-indigo-400' : 'text-slate-400 group-hover:text-indigo-600')} transition-colors`}>
         {icon}
       </div>
       {label && <span className="text-sm font-bold tracking-tight">{label}</span>}
@@ -87,21 +89,21 @@ function SidebarItem({ icon, label, active = false, onClick }: { icon: React.Rea
   );
 }
 
-function StepperItem({ num, label, active, done }: { num: number, label: string, active: boolean, done: boolean }) {
+function StepperItem({ num, label, active, done, isDark }: { num: number, label: string, active: boolean, done: boolean, isDark: boolean }) {
   return (
     <div className={`flex items-center gap-3 transition-all duration-500 ${active ? 'scale-110' : 'opacity-60'}`}>
       <div className={`
         w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500
-        ${done ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-100 text-slate-400'}
+        ${done ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : (isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400')}
       `}>
         {done ? <Check size={14} /> : num}
       </div>
-      <span className={`text-[11px] font-black uppercase tracking-widest ${active ? 'text-slate-900' : 'text-slate-400'}`}>{label}</span>
+      <span className={`text-[11px] font-black uppercase tracking-widest ${active ? (isDark ? 'text-white' : 'text-slate-900') : 'text-slate-400'}`}>{label}</span>
     </div>
   );
 }
 
-function CategoryDropdown({ value, onChange }: { value: string, onChange: (v: string) => void }) {
+function CategoryDropdown({ value, onChange, isDark }: { value: string, onChange: (v: string) => void, isDark: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const selected = CATEGORIES.find(c => c.id === value) || CATEGORIES[0];
 
@@ -109,25 +111,25 @@ function CategoryDropdown({ value, onChange }: { value: string, onChange: (v: st
     <div className="relative">
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 bg-white border border-slate-100 px-5 py-3 rounded-2xl shadow-sm hover:bg-slate-50 transition-all min-w-[180px]"
+        className={`flex items-center gap-3 ${isDark ? 'bg-slate-800 border-slate-700 hover:bg-slate-750' : 'bg-white border-slate-100 hover:bg-slate-50'} border px-5 py-3 rounded-2xl shadow-sm transition-all min-w-[180px] h-full`}
       >
         <span className="text-xl">
           {typeof selected.icon === 'function' ? selected.icon({ size: 20 }) : selected.icon}
         </span>
         <div className="text-left">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</p>
-          <p className="text-xs font-bold text-slate-900">{selected.label}</p>
+          <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{selected.label}</p>
         </div>
         <ChevronDown size={14} className={`ml-auto text-slate-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-3 w-64 bg-white border border-slate-100 rounded-3xl shadow-2xl p-2 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className={`absolute top-full mt-3 w-64 ${isDark ? 'bg-slate-800 border-slate-700 shadow-3xl' : 'bg-white border-slate-100 shadow-2xl'} border rounded-3xl p-2 z-[100] animate-in fade-in slide-in-from-top-2 duration-300`}>
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
               onClick={() => { onChange(cat.id); setIsOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${value === cat.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50 text-slate-600'}`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${value === cat.id ? (isDark ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700') : (isDark ? 'hover:bg-slate-700 text-slate-300' : 'hover:bg-slate-50 text-slate-600')}`}
             >
               <span className="text-lg">
                 {typeof cat.icon === 'function' ? cat.icon({ size: 18 }) : cat.icon}
@@ -142,48 +144,43 @@ function CategoryDropdown({ value, onChange }: { value: string, onChange: (v: st
   );
 }
 
-function ModeCard({ icon, title, desc, active, onClick, id }: { icon: React.ReactNode, title: string, desc: string, active: boolean, onClick: () => void, id?: string }) {
+function ModeCard({ icon, title, active, onClick, id, isDark }: { icon: React.ReactNode, title: string, active: boolean, onClick: () => void, id?: string, isDark: boolean }) {
   return (
-    <div 
+    <button 
       id={id}
       onClick={onClick}
       className={`
-        relative p-6 rounded-3xl border-2 transition-all cursor-pointer group flex flex-col gap-4
+        px-6 py-4 rounded-2xl border-2 transition-all group flex items-center gap-3 flex-1
         ${active 
-          ? 'border-indigo-600 bg-indigo-50/30' 
-          : 'border-slate-100 bg-white hover:border-slate-200'}
+          ? (isDark ? 'border-indigo-600 bg-indigo-600/20 text-white' : 'border-indigo-600 bg-indigo-50 text-indigo-700') 
+          : (isDark ? 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200')}
       `}
     >
       <div className={`
-        w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500
-        ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-50 text-slate-400 group-hover:scale-110'}
+        w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300
+        ${active ? 'bg-indigo-600 text-white' : (isDark ? 'bg-slate-800 text-slate-500 group-hover:scale-110' : 'bg-slate-50 text-slate-400 group-hover:scale-110')}
       `}>
         {icon}
       </div>
-      <div>
-        <h4 className="font-black text-slate-900 text-sm mb-1">{title}</h4>
-        <p className="text-[11px] text-slate-500 leading-relaxed">{desc}</p>
+      <div className="text-left flex-1">
+        <h4 className={`font-black text-xs ${active ? (isDark ? 'text-white' : 'text-indigo-700') : (isDark ? 'text-slate-200' : 'text-slate-900')}`}>{title}</h4>
       </div>
-      {active && (
-        <div className="absolute top-4 right-4 text-indigo-600">
-          <CheckCircle2 size={20} />
-        </div>
-      )}
-    </div>
+      {active && <CheckCircle2 size={16} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />}
+    </button>
   );
 }
 
-function ToggleItem({ icon, label, enabled, onChange, tooltip }: { icon: React.ReactNode, label: string, enabled: boolean, onChange: (v: boolean) => void, tooltip?: string }) {
+function ToggleItem({ icon, label, enabled, onChange, tooltip, isDark }: { icon: React.ReactNode, label: string, enabled: boolean, onChange: (v: boolean) => void, tooltip?: string, isDark: boolean }) {
   return (
     <div className="flex items-center gap-3 group relative cursor-help">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${enabled ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' : 'bg-slate-50 text-slate-400 border border-transparent'}`}>
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${enabled ? (isDark ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-500/30' : 'bg-indigo-50 text-indigo-600 border border-indigo-100') : (isDark ? 'bg-slate-800 text-slate-500 border border-transparent' : 'bg-slate-50 text-slate-400 border border-transparent')}`}>
         {icon}
       </div>
       <div className="flex flex-col">
         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer">{label}</label>
         <button 
           onClick={() => onChange(!enabled)}
-          className={`w-10 h-5 rounded-full relative transition-all duration-300 ${enabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+          className={`w-10 h-5 rounded-full relative transition-all duration-300 ${enabled ? 'bg-indigo-600' : (isDark ? 'bg-slate-700' : 'bg-slate-200')}`}
         >
           <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${enabled ? 'left-6' : 'left-1'}`} />
         </button>
@@ -207,6 +204,11 @@ function App() {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('webslide_theme') === 'dark');
+
+  useEffect(() => {
+    localStorage.setItem('webslide_theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
   
   // Deprecated/Hidden logic for SaaS
   const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
@@ -429,72 +431,86 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] overflow-hidden font-jakarta">
-      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-100 flex flex-col transition-all duration-500 z-30 shadow-sm relative`}>
-        <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="absolute -right-3 top-10 w-6 h-6 bg-white border border-slate-200 rounded-full flex items-center justify-center text-slate-400 hover:text-indigo-600 shadow-sm">
+    <div className={`flex h-screen ${isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-[#F8FAFC] text-slate-900'} overflow-hidden font-jakarta transition-colors duration-500`}>
+      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-80'} ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'} border-r flex flex-col transition-all duration-500 z-30 shadow-sm relative`}>
+        <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className={`absolute -right-3 top-10 w-6 h-6 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-500' : 'bg-white border-slate-200 text-slate-400'} border rounded-full flex items-center justify-center hover:text-indigo-600 shadow-sm transition-all`}>
           {isSidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
         </button>
         <div className={`p-8 mb-4 flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200"><Layout className="text-white" size={24} /></div>
-          {!isSidebarCollapsed && (<div><h1 className="text-xl font-black text-slate-900 leading-tight">WebSlide</h1><p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">SaaS Engine</p></div>)}
+          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20"><Layout className="text-white" size={24} /></div>
+          {!isSidebarCollapsed && (<div><h1 className="text-xl font-black leading-tight">WebSlide</h1><p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">SaaS Engine</p></div>)}
         </div>
         <nav className="flex-1 px-4 space-y-1">
-          <SidebarItem icon={<Layout size={20} />} label={isSidebarCollapsed ? "" : "Dashboard"} active={currentStep !== 'done'} onClick={resetFlow} />
-          <SidebarItem icon={<History size={20} />} label={isSidebarCollapsed ? "" : "Riwayat"} />
+          <SidebarItem icon={<Layout size={20} />} label={isSidebarCollapsed ? "" : "Dashboard"} active={currentStep !== 'done'} onClick={resetFlow} isDark={isDarkMode} />
+          <SidebarItem icon={<History size={20} />} label={isSidebarCollapsed ? "" : "Riwayat"} isDark={isDarkMode} />
         </nav>
       </aside>
 
-      <main className="flex-1 overflow-y-auto relative bg-[#F8FAFC]">
+      <main className="flex-1 overflow-y-auto relative">
         <div className="max-w-[1600px] p-8 lg:p-12">
-          <header className="flex justify-between items-center mb-10">
+          <header className="flex justify-between items-center mb-12">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">Halo, {session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}! 👋</h2>
-              <p className="text-slate-500 text-sm font-medium mt-1">Siap untuk membuat WebSlide yang memukau hari ini?</p>
+              <h2 className="text-3xl font-black tracking-tight">Halo, {session?.user?.user_metadata?.full_name?.split(' ')[0] || 'User'}! 👋</h2>
+              <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} text-sm font-medium mt-1`}>Siap untuk membuat WebSlide yang memukau hari ini?</p>
             </div>
             <div className="flex items-center gap-4">
-               {profile?.role === 'pro' && (<div className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-2xl border border-indigo-100"><Crown size={16} /><span className="text-[10px] font-black uppercase">PRO</span></div>)}
-               <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} />
+               {profile?.role === 'pro' && (<div className="flex items-center gap-2 bg-indigo-600/10 text-indigo-400 px-4 py-2 rounded-2xl border border-indigo-500/20"><Crown size={16} /><span className="text-[10px] font-black uppercase">PRO</span></div>)}
+               <button 
+                  onClick={() => setIsDarkMode(!isDarkMode)}
+                  className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-yellow-400 hover:bg-slate-750' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
+               >
+                 {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+               </button>
                {session && <UserMenu user={session.user} profile={profile} />}
             </div>
           </header>
 
-          <div className="flex flex-col gap-8">
-            <div className="bg-white/40 backdrop-blur-md p-4 rounded-[32px] border border-white max-w-4xl">
+          <div className="flex flex-col gap-10">
+            <div className={`${isDarkMode ? 'bg-slate-800/40 border-slate-700' : 'bg-white/40 border-white'} backdrop-blur-md p-5 rounded-[32px] border max-w-4xl shadow-sm`}>
               <div className="flex justify-between px-4">
-                <StepperItem num={1} label="Mulai" active={['category', 'upload'].includes(currentStep)} done={['skeleton', 'generating', 'done'].includes(currentStep)} />
-                <StepperItem num={2} label="Outline" active={currentStep === 'skeleton'} done={['generating', 'done'].includes(currentStep)} />
-                <StepperItem num={3} label="Magic" active={currentStep === 'generating'} done={currentStep === 'done'} />
-                <StepperItem num={4} label="Selesai" active={currentStep === 'done'} done={false} />
+                <StepperItem num={1} label="Mulai" active={['category', 'upload'].includes(currentStep)} done={['skeleton', 'generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
+                <StepperItem num={2} label="Outline" active={currentStep === 'skeleton'} done={['generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
+                <StepperItem num={3} label="Magic" active={currentStep === 'generating'} done={currentStep === 'done'} isDark={isDarkMode} />
+                <StepperItem num={4} label="Selesai" active={currentStep === 'done'} done={false} isDark={isDarkMode} />
               </div>
             </div>
 
             {currentStep === 'category' && (
-              <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-50 relative overflow-hidden">
-                <h3 className="text-xl font-black text-slate-900 mb-2">Pilih Strategi Konten 🧠</h3>
-                <p className="text-slate-500 mb-10 text-sm">Gunakan Quick Mode untuk teks singkat, atau Mode Lanjutan untuk file PDF.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <ModeCard icon={<Zap size={24} />} title="Quick Mode" desc="Teks atau judul singkat" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" />
-                  <ModeCard icon={<FileUp size={24} />} title="Mode Lanjutan" desc="Konten dari file PDF" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} />
+              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative overflow-hidden`}>
+                <div className="flex flex-col gap-6">
+                  <div>
+                    <h3 className="text-xl font-black mb-2">Pilih Mode berikut untuk Generate WebSlide 🪄</h3>
+                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Tentukan sumber materi Anda dan kategori yang sesuai.</p>
+                  </div>
+                  
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-1 gap-3">
+                      <ModeCard icon={<Zap size={18} />} title="Quick Mode" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" isDark={isDarkMode} />
+                      <ModeCard icon={<FileUp size={18} />} title="Mode Lanjutan" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} isDark={isDarkMode} />
+                    </div>
+                    <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} isDark={isDarkMode} />
+                  </div>
                 </div>
-                <div className="mt-10 space-y-6">
+
+                <div className="mt-8 space-y-6">
                   {inputMode === 'advanced' ? (
-                    <div onClick={triggerFileUpload} className="border-2 border-dashed border-slate-200 rounded-[32px] p-12 flex flex-col items-center justify-center gap-4 hover:border-indigo-400 hover:bg-indigo-50/30 cursor-pointer bg-slate-50/50">
-                      <FileUp size={32} className="text-slate-400" /><p className="font-bold text-slate-900 text-center">Klik atau seret PDF ke sini</p>
+                    <div onClick={triggerFileUpload} className={`${isDarkMode ? 'border-slate-800 bg-slate-800/20 hover:bg-slate-800/40 hover:border-indigo-500/50' : 'border-slate-200 bg-slate-50/50 hover:bg-indigo-50/30 hover:border-indigo-400'} border-2 border-dashed rounded-[32px] p-16 flex flex-col items-center justify-center gap-4 cursor-pointer transition-all`}>
+                      <FileUp size={40} className={isDarkMode ? 'text-slate-600' : 'text-slate-300'} /><p className="font-bold text-center">Klik atau seret PDF ke sini</p>
                       <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
                     </div>
                   ) : (
                     <textarea 
                       value={quickPrompt} onChange={(e) => setQuickPrompt(e.target.value)} placeholder={placeholderText} 
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-6 py-5 text-slate-900 focus:ring-2 focus:ring-indigo-500/20 min-h-[140px] text-sm font-medium" 
+                      className={`w-full ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-900 placeholder:text-slate-400'} border rounded-3xl px-6 py-5 focus:ring-2 focus:ring-indigo-500/20 min-h-[160px] text-sm font-medium transition-all outline-none`} 
                     />
                   )}
-                  <div className="flex justify-between items-center pt-4 border-t border-slate-50">
-                    <div className="flex gap-8">
-                      <ToggleItem icon={<Palette size={18} />} label="Ilustrasi AI" enabled={isImageGenEnabled} onChange={setIsImageGenEnabled} />
-                      <ToggleItem icon={<List size={18} />} label="Kuis" enabled={includeQuiz} onChange={setIncludeQuiz} />
+                  <div className={`flex flex-col sm:flex-row justify-between items-center pt-8 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'} gap-6`}>
+                    <div className="flex gap-10">
+                      <ToggleItem icon={<Palette size={18} />} label="Ilustrasi AI" enabled={isImageGenEnabled} onChange={setIsImageGenEnabled} isDark={isDarkMode} />
+                      <ToggleItem icon={<List size={18} />} label="Kuis" enabled={includeQuiz} onChange={setIncludeQuiz} isDark={isDarkMode} />
                     </div>
-                    <button id="tour-generate-btn" disabled={isProcessing || (inputMode === 'quick' && !quickPrompt)} onClick={handleQuickGenerate} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl shadow-indigo-100 flex items-center gap-3">
-                      {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Mulai Generate
+                    <button id="tour-generate-btn" disabled={isProcessing || (inputMode === 'quick' && !quickPrompt)} onClick={handleQuickGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 flex items-center gap-3 transition-all transform active:scale-[0.98]">
+                      {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Generate WebSlide
                     </button>
                   </div>
                 </div>
@@ -502,25 +518,25 @@ function App() {
             )}
 
             {currentStep === 'skeleton' && (
-              <div className="bg-white p-10 rounded-[40px] shadow-sm border border-slate-50 animate-in slide-in-from-bottom-4">
-                <h3 className="text-xl font-black text-slate-900 mb-2">Outline Telah Siap ✨</h3>
-                <p className="text-slate-500 mb-8 text-sm">Pilih bab yang ingin dibuatkan slide-nya.</p>
+              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border animate-in slide-in-from-bottom-4`}>
+                <h3 className="text-xl font-black mb-2">Outline Telah Siap ✨</h3>
+                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Pilih bab yang ingin dibuatkan slide-nya.</p>
                 <div className="space-y-3 mb-10">
-                  {chapters.map((chapter) => (
-                    <div 
+                  {chapters.map((chapter, idx) => (
+                    <button 
                       key={chapter.id} onClick={() => { setSelectedChapters(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id]); }}
-                      className={`p-5 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 ${selectedChapters.includes(chapter.id) ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100'}`}
+                      className={`w-full p-5 rounded-2xl border-2 transition-all flex items-center gap-4 ${selectedChapters.includes(chapter.id) ? (isDarkMode ? 'border-indigo-600 bg-indigo-600/10' : 'border-indigo-600 bg-indigo-50') : (isDarkMode ? 'border-slate-800 bg-slate-800/30' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100')}`}
                     >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : 'bg-white text-slate-300'}`}>
-                        {selectedChapters.includes(chapter.id) ? <Check size={18} /> : chapter.id}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-white text-slate-300')}`}>
+                        {selectedChapters.includes(chapter.id) ? <Check size={18} /> : (idx + 1)}
                       </div>
-                      <h4 className="font-bold text-slate-900 text-sm">{chapter.title}</h4>
-                    </div>
+                      <h4 className="font-bold text-sm">{chapter.title}</h4>
+                    </button>
                   ))}
                 </div>
-                <div className="flex justify-between items-center pt-6 border-t border-slate-50">
-                  <button onClick={resetFlow} className="text-sm font-bold text-slate-400 hover:text-slate-600">Batal</button>
-                  <button onClick={startGeneration} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl flex items-center gap-3">
+                <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'}`}>
+                  <button onClick={resetFlow} className="text-sm font-semibold text-slate-500 hover:text-slate-400 transition-colors">Batal & Reset</button>
+                  <button onClick={startGeneration} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl flex items-center gap-3 hover:bg-slate-800 transition-all">
                     Generate Slides <ArrowRight size={18} />
                   </button>
                 </div>
@@ -528,25 +544,25 @@ function App() {
             )}
 
             {currentStep === 'generating' && (
-              <div className="bg-white p-16 rounded-[40px] shadow-sm flex flex-col items-center justify-center text-center">
+              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm flex flex-col items-center justify-center text-center border`}>
                 <div className="w-24 h-24 border-8 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8"></div>
-                <h3 className="text-2xl font-black text-slate-900 mb-4">AI Sedang Bekerja...</h3>
-                <p className="text-slate-500 mb-8 text-sm">Kami sedang merangkai konten WebSlide Anda.</p>
-                <div className="w-full max-w-md bg-slate-100 h-2 rounded-full overflow-hidden mb-4">
-                  <div className="bg-indigo-600 h-full transition-all duration-500" style={{ width: `${progressPercent}%` }}></div>
+                <h3 className="text-2xl font-black mb-4">AI Sedang Bekerja...</h3>
+                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Kami sedang merangkai konten WebSlide Anda secara real-time.</p>
+                <div className={`w-full max-w-md ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'} h-2 rounded-full overflow-hidden mb-4`}>
+                  <div className="bg-indigo-600 h-full transition-all duration-500 shadow-lg shadow-indigo-600/50" style={{ width: `${progressPercent}%` }}></div>
                 </div>
-                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{currentProgressText}</p>
+                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest animate-pulse">{currentProgressText}</p>
               </div>
             )}
 
             {currentStep === 'done' && (
-              <div className="bg-white p-16 rounded-[40px] shadow-sm text-center animate-in zoom-in-95">
-                <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6"><CheckCircle2 size={40} /></div>
-                <h3 className="text-3xl font-black text-slate-900 mb-2">WebSlide Berhasil Dibuat!</h3>
-                <p className="text-slate-500 mb-10">Klik Preview untuk melihat presentasi interaktif Anda.</p>
+              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm text-center animate-in zoom-in-95 border`}>
+                <div className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><CheckCircle2 size={40} /></div>
+                <h3 className="text-3xl font-black mb-2">WebSlide Berhasil Dibuat!</h3>
+                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-10 font-medium`}>Klik Preview untuk melihat presentasi interaktif dan export hasilnya.</p>
                 <div className="flex justify-center gap-4">
-                  <button onClick={() => setShowPreview(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl transition-all">Lihat Preview</button>
-                  <button onClick={resetFlow} className="bg-slate-100 text-slate-600 px-10 py-4 rounded-2xl font-black transition-all">Buat Baru</button>
+                  <button onClick={() => setShowPreview(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 transition-all transition-all transform active:scale-[0.98]">Lihat Preview</button>
+                  <button onClick={resetFlow} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} px-10 py-4 rounded-2xl font-black transition-all transform active:scale-[0.98]`}>Buat Baru</button>
                 </div>
               </div>
             )}
@@ -561,3 +577,4 @@ function App() {
 }
 
 export default App;
+
