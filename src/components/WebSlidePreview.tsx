@@ -88,6 +88,7 @@ export function WebSlidePreview({
   const [activeTab, setActiveTab] = useState<'content' | 'theme'>('content');
   const [iframeSrc, setIframeSrc] = useState(html);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastInternalIndex = useRef<number | null>(0); // Sync tracker to prevent message echo
   const slideItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [exportStatus, setExportStatus] = useState<{
     type: 'pdf' | 'pptx';
@@ -112,6 +113,7 @@ export function WebSlidePreview({
       if (e.data?.type === 'WEBSLIDE_CHANGE') {
         const idx = e.data.index;
         if (idx < data.slides.length) {
+          lastInternalIndex.current = idx; // Update sync tracker first
           setActiveSlideIndex(idx);
           setTimeout(() => {
             slideItemRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -126,12 +128,16 @@ export function WebSlidePreview({
   // Send GO_TO_SLIDE command TO the iframe when sidebar item is clicked
   // Loop prevention is handled on the iframe side via notifyParent flag
   useEffect(() => {
-    if (activeSlideIndex !== null && iframeRef.current?.contentWindow) {
+    // Only send GO_TO command if the change came from the parent (e.g. sidebar click)
+    // and NOT from the iframe echoing its own state.
+    if (activeSlideIndex !== null && iframeRef.current?.contentWindow && activeSlideIndex !== lastInternalIndex.current) {
       iframeRef.current.contentWindow.postMessage(
         { type: 'WEBSLIDE_GO_TO', index: activeSlideIndex },
         '*'
       );
     }
+    // Always update the tracker to the current target after potential sync
+    lastInternalIndex.current = activeSlideIndex;
   }, [activeSlideIndex]);
 
   // 3.3 Keyboard shortcuts
