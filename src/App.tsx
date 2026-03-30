@@ -93,10 +93,10 @@ function StepperItem({ num, label, active, done, isDark }: { num: number, label:
   return (
     <div className={`flex items-center gap-3 transition-all duration-500 ${active ? 'scale-110' : 'opacity-60'}`}>
       <div className={`
-        w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500
-        ${done ? 'bg-emerald-500 text-white' : active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : (isDark ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-400')}
+        w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black transition-all duration-500
+        ${done ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : active ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' : (isDark ? 'bg-slate-800 text-slate-500 shadow-inner' : 'bg-slate-100 text-slate-400')}
       `}>
-        {done ? <Check size={14} /> : num}
+        {done ? <Check size={16} /> : num}
       </div>
       <span className={`text-[11px] font-black uppercase tracking-widest ${active ? (isDark ? 'text-white' : 'text-slate-900') : 'text-slate-400'}`}>{label}</span>
     </div>
@@ -144,28 +144,29 @@ function CategoryDropdown({ value, onChange, isDark }: { value: string, onChange
   );
 }
 
-function ModeCard({ icon, title, active, onClick, id, isDark }: { icon: React.ReactNode, title: string, active: boolean, onClick: () => void, id?: string, isDark: boolean }) {
+function ModeCard({ icon, title, desc, active, onClick, id, isDark }: { icon: React.ReactNode, title: string, desc: string, active: boolean, onClick: () => void, id?: string, isDark: boolean }) {
   return (
     <button 
       id={id}
       onClick={onClick}
       className={`
-        px-6 py-4 rounded-2xl border-2 transition-all group flex items-center gap-3 flex-1
+        px-5 py-4 rounded-2xl border-2 transition-all group flex items-center gap-4 flex-1 min-w-[200px]
         ${active 
           ? (isDark ? 'border-indigo-600 bg-indigo-600/20 text-white' : 'border-indigo-600 bg-indigo-50 text-indigo-700') 
           : (isDark ? 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700' : 'border-slate-100 bg-white text-slate-500 hover:border-slate-200')}
       `}
     >
       <div className={`
-        w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300
-        ${active ? 'bg-indigo-600 text-white' : (isDark ? 'bg-slate-800 text-slate-500 group-hover:scale-110' : 'bg-slate-50 text-slate-400 group-hover:scale-110')}
+        w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shrink-0
+        ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : (isDark ? 'bg-slate-800 text-slate-500 group-hover:scale-110' : 'bg-slate-50 text-slate-400 group-hover:scale-110')}
       `}>
         {icon}
       </div>
-      <div className="text-left flex-1">
-        <h4 className={`font-black text-xs ${active ? (isDark ? 'text-white' : 'text-indigo-700') : (isDark ? 'text-slate-200' : 'text-slate-900')}`}>{title}</h4>
+      <div className="text-left flex-1 min-w-0">
+        <h4 className={`font-black text-xs truncate ${active ? (isDark ? 'text-white' : 'text-indigo-700') : (isDark ? 'text-slate-200' : 'text-slate-900')}`}>{title}</h4>
+        <p className={`text-[10px] font-medium leading-tight mt-0.5 line-clamp-1 ${active ? (isDark ? 'text-indigo-300/80' : 'text-indigo-600/70') : 'text-slate-500'}`}>{desc}</p>
       </div>
-      {active && <CheckCircle2 size={16} className={isDark ? 'text-indigo-400' : 'text-indigo-600'} />}
+      {active && <CheckCircle2 size={16} className={`shrink-0 ${isDark ? 'text-indigo-400' : 'text-indigo-600'}`} />}
     </button>
   );
 }
@@ -476,19 +477,21 @@ function App() {
             </div>
 
             {currentStep === 'category' && (
-              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative overflow-hidden`}>
+              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative`}>
                 <div className="flex flex-col gap-6">
                   <div>
                     <h3 className="text-xl font-black mb-2">Pilih Mode berikut untuk Generate WebSlide 🪄</h3>
                     <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Tentukan sumber materi Anda dan kategori yang sesuai.</p>
                   </div>
                   
-                  <div className="flex flex-col md:flex-row gap-4">
-                    <div className="flex flex-1 gap-3">
-                      <ModeCard icon={<Zap size={18} />} title="Quick Mode" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" isDark={isDarkMode} />
-                      <ModeCard icon={<FileUp size={18} />} title="Mode Lanjutan" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} isDark={isDarkMode} />
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex flex-1 flex-col sm:flex-row gap-3">
+                      <ModeCard icon={<Zap size={18} />} title="Quick Mode" desc="Input teks atau judul singkat" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" isDark={isDarkMode} />
+                      <ModeCard icon={<FileUp size={18} />} title="Mode Lanjutan" desc="Generate dari file PDF" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} isDark={isDarkMode} />
                     </div>
-                    <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} isDark={isDarkMode} />
+                    <div className="flex shrink-0">
+                      <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} isDark={isDarkMode} />
+                    </div>
                   </div>
                 </div>
 
