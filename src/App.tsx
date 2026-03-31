@@ -431,9 +431,10 @@ function App() {
   };
 
   const calculateEstimatedCost = () => {
-    const slideCount = chapters.filter(c => selectedChapters.includes(c.id)).length * 2; // Est ratio
+    const selectedChaptersObjects = chapters.filter(c => selectedChapters.includes(c.id));
+    const slideCount = selectedChaptersObjects.reduce((acc, c) => acc + (c.suggestedSlides || 2), 0);
     let total = slideCount * 10; // 10 per slide
-    if (isImageGenEnabled) total += (slideCount * 100); // 100 per image
+    if (isImageGenEnabled) total += (selectedChaptersObjects.length * 100); // 100 per image (one per chapter usually or use different logic)
     if (includeQuiz) total += 50; // Flat quiz fee
     return total;
   };
@@ -460,12 +461,14 @@ function App() {
         { type: 'outline', title: 'Daftar Isi', content: selectedChapterObjects.map(c => c.title) }
       ];
 
+      let totalSlideCount = 2; // Start with cover and outline
       for (let i = 0; i < selectedChapterObjects.length; i++) {
         const chapter = selectedChapterObjects[i];
-        setCurrentProgressText(`Memproses Bab ${i+1}/${selectedChapterObjects.length}...`);
+        setCurrentProgressText(`Memproses Bab ${i+1}/${selectedChapterObjects.length}... (${totalSlideCount} Slide terangkai)`);
         setProgressPercent(Math.floor(((i+1)/selectedChapterObjects.length)*100));
         const chapterSlides = await generateChapterSlides(chapter, extractedText, selectedCategory);
         allSlides = [...allSlides, ...chapterSlides];
+        totalSlideCount = allSlides.length;
       }
 
       const finalData: WebSlideJson = {
@@ -481,28 +484,34 @@ function App() {
       setGeneratedHtml(html);
       
       // Post-Generation actions
-      if (session?.user) {
-        // Save to Cloud
-        await databaseService.saveWebSlide({
-          userId: session.user.id,
-          title: finalData.title,
-          author: finalData.author,
-          course: finalData.course,
-          data: finalData,
-          html: html,
-          templateId: selectedTemplate
-        });
-        
-        // Deduct Credits if not PRO
-        if (profile?.role !== 'pro') {
-          await databaseService.deductCredits(session.user.id, estimatedCost);
+      try {
+        if (session?.user) {
+          // Save to Cloud
+          await databaseService.saveWebSlide({
+            userId: session.user.id,
+            title: finalData.title,
+            author: finalData.author,
+            course: finalData.course,
+            data: finalData,
+            html: html,
+            templateId: selectedTemplate
+          });
+          
+          // Deduct Credits if not PRO
+          if (profile?.role !== 'pro') {
+            await databaseService.deductCredits(session.user.id, estimatedCost);
+          }
+          
+          await refreshDashboard();
+        } else {
+          // Fallback to local
+          saveToHistory(finalData, html, selectedTemplate);
+          refreshHistory();
         }
-        
-        await refreshDashboard();
-      } else {
-        // Fallback to local
-        saveToHistory(finalData, html, selectedTemplate);
-        refreshHistory();
+      } catch (dbError) {
+        console.error("Database action failed, but presentation is generated in state:", dbError);
+        // We catch this to prevent the UI from being stuck in 'generating' state
+        // if only the DB sync fails. User already has the data in current session.
       }
 
       setProcessStatus('done');
@@ -650,17 +659,49 @@ function App() {
                   <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border animate-in slide-in-from-bottom-4`}>
                     <h3 className="text-xl font-black mb-2">Outline Telah Siap ✨</h3>
                     <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Pilih bab yang ingin dibuatkan slide-nya.</p>
-                    <div className="space-y-3 mb-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10 overflow-y-auto max-h-[500px] pr-2 custom-scrollbar">
                       {chapters.map((chapter, idx) => (
-                        <button 
-                          key={chapter.id} onClick={() => { setSelectedChapters(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id]); }}
-                          className={`w-full p-5 rounded-2xl border-2 transition-all flex items-center gap-4 ${selectedChapters.includes(chapter.id) ? (isDarkMode ? 'border-indigo-600 bg-indigo-600/10' : 'border-indigo-600 bg-indigo-50') : (isDarkMode ? 'border-slate-800 bg-slate-800/30' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100')}`}
+                        <div 
+                          key={chapter.id} 
+                          onClick={() => { setSelectedChapters(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id]); }}
+                          className={`group cursor-pointer p-6 rounded-3xl border-2 transition-all flex flex-col gap-4 relative overflow-hidden ${selectedChapters.includes(chapter.id) ? (isDarkMode ? 'border-indigo-600 bg-indigo-600/10' : 'border-indigo-600 bg-indigo-50') : (isDarkMode ? 'border-slate-800 bg-slate-800/30 hover:border-slate-700' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100')}`}
                         >
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-white text-slate-300')}`}>
-                            {selectedChapters.includes(chapter.id) ? <Check size={18} /> : (idx + 1)}
+                          <div className="flex justify-between items-start">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-white text-slate-300')}`}>
+                              {selectedChapters.includes(chapter.id) ? <Check size={18} /> : (idx + 1)}
+                            </div>
+                            <div className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600/20 text-indigo-400' : (isDarkMode ? 'bg-slate-800 text-slate-500' : 'bg-white text-slate-400')} border ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
+                              ± {chapter.suggestedSlides || 2} Slide
+                            </div>
                           </div>
-                          <h4 className="font-bold text-sm">{chapter.title}</h4>
-                        </button>
+                          
+                          <div>
+                            <h4 className="font-black text-sm mb-2 leading-tight">{chapter.title}</h4>
+                            <p className={`text-[11px] leading-relaxed mb-4 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} line-clamp-2`}>{chapter.summary}</p>
+                            
+                            {chapter.subtopics && chapter.subtopics.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mb-4">
+                                {chapter.subtopics.slice(0, 3).map((sub, sIdx) => (
+                                  <span key={sIdx} className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${isDarkMode ? 'bg-slate-800 text-slate-500' : 'bg-slate-200/50 text-slate-500'}`}>{sub}</span>
+                                ))}
+                                {chapter.subtopics.length > 3 && <span className="text-[9px] font-bold text-slate-400">+{chapter.subtopics.length - 3} lagi</span>}
+                              </div>
+                            )}
+
+                            {chapter.references && chapter.references.length > 0 && (
+                              <div className="flex items-center gap-2 mt-auto pt-4 border-t border-dashed border-slate-700/20">
+                                <BookOpen size={12} className="text-indigo-500" />
+                                <span className="text-[9px] font-bold text-indigo-500 truncate">{chapter.references[0]}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {selectedChapters.includes(chapter.id) && (
+                            <div className="absolute -right-2 -bottom-2 opacity-10">
+                              <Sparkles size={80} className="text-indigo-600" />
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                     <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'}`}>

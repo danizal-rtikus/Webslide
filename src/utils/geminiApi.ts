@@ -35,6 +35,8 @@ export interface Chapter {
   id: string;
   title: string;
   summary: string;
+  subtopics?: string[];
+  references?: string[];
   suggestedSlides: number;
 }
 
@@ -116,7 +118,21 @@ export async function identifyChapters(text: string, category: string): Promise<
     Style Instruction: ${CATEGORIES.find(c => c.id === category)?.promptInstruction || 'Educational and academic.'}
     
     Return a JSON object with: 
-    { "title": "...", "author": "...", "course": "...", "chapters": [ { "id": "...", "title": "...", "summary": "...", "suggestedSlides": ... } ] }
+    { 
+      "title": "...", 
+      "author": "...", 
+      "course": "...", 
+      "chapters": [ 
+        { 
+          "id": "...", 
+          "title": "...", 
+          "summary": "...", 
+          "subtopics": ["...", "..."], 
+          "references": ["...", "..."],
+          "suggestedSlides": ... 
+        } 
+      ] 
+    }
     Max 8 chapters. Language: Indonesian (Bahasa Indonesia).
     
     TEXT:
@@ -151,7 +167,21 @@ export async function generateSkeletonFromPrompt(userPrompt: string, category: s
     4. 5-8 logical chapters/topics to cover the subject thoroughly.
     
     Return a JSON object with: 
-    { "title": "...", "author": "...", "course": "...", "chapters": [ { "id": "...", "title": "...", "summary": "...", "suggestedSlides": ... } ] }
+    { 
+      "title": "...", 
+      "author": "...", 
+      "course": "...", 
+      "chapters": [ 
+        { 
+          "id": "...", 
+          "title": "...", 
+          "summary": "...", 
+          "subtopics": ["...", "..."], 
+          "references": ["...", "..."],
+          "suggestedSlides": ... 
+        } 
+      ] 
+    }
     Use Indonesian (Bahasa Indonesia).
   `;
 
