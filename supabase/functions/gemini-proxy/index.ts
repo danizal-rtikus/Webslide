@@ -13,13 +13,18 @@ serve(async (req) => {
   }
 
   try {
+    const userKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
+    if (!userKey) {
+      return new Response(JSON.stringify({ error: 'Supabase Anon/Publishable Key missing in Deno env' }), { status: 400 });
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      userKey,
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    // Check if the user is authenticated
+    // Check if the user is authenticated 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
