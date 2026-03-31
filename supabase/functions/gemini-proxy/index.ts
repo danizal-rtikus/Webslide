@@ -15,7 +15,10 @@ serve(async (req) => {
   try {
     const userKey = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || '';
     if (!userKey) {
-      return new Response(JSON.stringify({ error: 'Supabase Anon/Publishable Key missing in Deno env' }), { status: 400 });
+      return new Response(JSON.stringify({ error: 'Supabase Anon/Publishable Key missing in Deno env' }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
 
     const supabaseClient = createClient(
@@ -27,9 +30,9 @@ serve(async (req) => {
     // Check if the user is authenticated 
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ error: `Unauthorized or Token Expired: ${authError?.message || 'No user'}` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 401,
+        status: 200,
       })
     }
 
@@ -85,9 +88,9 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: `Proxy Crash: ${error.message}` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: 200,
     })
   }
 })
