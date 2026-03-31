@@ -50,8 +50,17 @@ export interface GeminiModel {
  * Helper to call the Supabase Edge Function proxy for Gemini
  */
 async function callGeminiProxy(action: string, payload: any) {
+  // Secara mutlak mengambil session token terbaru sebelum dipanggil
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  }
+
   const { data, error } = await supabase.functions.invoke('gemini-proxy', {
-    body: { action, payload }
+    body: { action, payload },
+    headers
   });
 
   if (error) {

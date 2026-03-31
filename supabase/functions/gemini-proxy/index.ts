@@ -21,16 +21,19 @@ serve(async (req) => {
       });
     }
 
+    const authHeader = req.headers.get('Authorization');
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       userKey,
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: authHeader! } } }
     )
 
-    // Check if the user is authenticated 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser()
+    // Check if the user is authenticated explicitly bypassing global headers
+    const jwt = authHeader ? authHeader.replace('Bearer ', '') : '';
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt)
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: `Unauthorized or Token Expired: ${authError?.message || 'No user'}` }), {
+      const dbgHdr = authHeader ? authHeader.substring(0, 20) + '...' : 'NULL';
+      return new Response(JSON.stringify({ error: `AuthFail [Hdr:${dbgHdr}]: ${authError?.message || 'No user obj'}` }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       })
