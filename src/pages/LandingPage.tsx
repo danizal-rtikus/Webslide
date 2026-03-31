@@ -241,12 +241,11 @@ function AppMockup() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                  <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3l5 3-5 3V6zm0 6l5 3-5 3v-6z"/>
-                </svg>
-              </div>
-              <span className="text-white text-sm font-bold">WebSlide</span>
+              <img 
+                src="https://i.ibb.co.com/zVt528k3/Logo-Web-Slide-Fix-Mayar.png" 
+                alt="WebSlide Logo" 
+                className="h-6 w-auto object-contain" 
+              />
             </div>
             <div className="flex items-center gap-2">
               <div className="bg-emerald-500/20 text-emerald-400 text-[9px] font-black px-2 py-1 rounded-full border border-emerald-500/20">AI CONNECTED</div>
@@ -332,12 +331,11 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-              <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2H4V6zm0 4h16v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8zm5 2a1 1 0 000 2h6a1 1 0 000-2H9z"/>
-              </svg>
-            </div>
-            <span className="font-black text-lg text-white tracking-tight">WebSlide</span>
+            <img 
+              src="https://i.ibb.co.com/zVt528k3/Logo-Web-Slide-Fix-Mayar.png" 
+              alt="WebSlide Logo" 
+              className="h-8 w-auto object-contain" 
+            />
           </div>
 
           {/* Nav links (desktop) */}
@@ -660,15 +658,12 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-8">
             {/* Logo */}
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
-                  <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v2H4V6zm0 4h16v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8zm5 2a1 1 0 000 2h6a1 1 0 000-2H9z"/>
-                </svg>
-              </div>
-              <div>
-                <div className="font-black text-white">WebSlide</div>
-                <div className="text-[10px] text-slate-500">{t.footer.tagline}</div>
-              </div>
+              <img 
+                src="https://i.ibb.co.com/zVt528k3/Logo-Web-Slide-Fix-Mayar.png" 
+                alt="WebSlide Logo" 
+                className="h-8 w-auto object-contain" 
+              />
+              <div className="text-[10px] text-slate-500 ml-2">{t.footer.tagline}</div>
             </div>
 
             {/* Links */}

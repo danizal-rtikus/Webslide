@@ -547,8 +547,11 @@ function App() {
           {isSidebarCollapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
         </button>
         <div className={`p-8 mb-4 flex items-center gap-3 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20"><Layout className="text-white" size={24} /></div>
-          {!isSidebarCollapsed && (<div><h1 className="text-xl font-black leading-tight">WebSlide</h1><p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">SaaS Engine</p></div>)}
+          <img 
+            src="https://i.ibb.co.com/zVt528k3/Logo-Web-Slide-Fix-Mayar.png" 
+            alt="WebSlide Logo" 
+            className={isSidebarCollapsed ? 'h-8 w-8 object-contain' : 'h-10 w-auto object-contain'} 
+          />
         </div>
         <nav className="flex-1 px-4 space-y-1">
           <SidebarItem icon={<Layout size={20} />} label={isSidebarCollapsed ? "" : "Dashboard"} active={activeTab === 'dashboard'} onClick={resetFlow} isDark={isDarkMode} />
