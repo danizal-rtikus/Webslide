@@ -56,7 +56,14 @@ async function callGeminiProxy(action: string, payload: any) {
 
   if (error) {
     console.error(`[Edge Function Error] ${action}:`, error);
-    throw new Error(`Gagal menghubungi server AI: ${error.message}`);
+    let extra = '';
+    try {
+      const errBody = await error.context?.json();
+      if (errBody && errBody.error) extra = ` Detail: ${errBody.error}`;
+    } catch (e) {
+      // Ignored
+    }
+    throw new Error(`Gagal menghubungi server AI: ${error.message}${extra}`);
   }
 
   if (data?.error) {
@@ -108,7 +115,7 @@ export async function identifyChapters(text: string, category: string): Promise<
   `;
 
   const data = await callGeminiProxy('generateContent', {
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { response_mime_type: "application/json" }
   });
@@ -140,7 +147,7 @@ export async function generateSkeletonFromPrompt(userPrompt: string, category: s
   `;
 
   const data = await callGeminiProxy('generateContent', {
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { response_mime_type: "application/json" }
   });
@@ -181,7 +188,7 @@ export async function generateChapterSlides(chapter: Chapter, text: string, cate
   `;
 
   const data = await callGeminiProxy('generateContent', {
-    model: "gemini-1.5-pro",
+    model: "gemini-2.5-flash",
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { response_mime_type: "application/json" }
   });
@@ -209,7 +216,7 @@ export async function generateQuizBatch(chapters: Chapter[], text: string): Prom
   `;
 
   const data = await callGeminiProxy('generateContent', {
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: { response_mime_type: "application/json" }
   });
@@ -233,7 +240,7 @@ export async function generateVisualDescription(title: string, content: string):
   `;
 
   const data = await callGeminiProxy('generateContent', {
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     contents: [{ parts: [{ text: prompt }] }]
   });
 
