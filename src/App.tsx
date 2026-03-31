@@ -32,14 +32,14 @@ import {
   Zap,
   Crown,
   Sun,
-  Moon
+  Moon,
+  Plus,
+  Trash2,
+  Shield
 } from 'lucide-react';
 import { extractTextFromPDF } from './utils/pdfProcessor';
 import { 
-  generateWebSlideData, 
   WebSlideJson, 
-  listAvailableModels, 
-  GeminiModel, 
   identifyChapters, 
   Chapter,
   generateChapterSlides,
@@ -59,6 +59,8 @@ import { TourTooltip, TourStepConfig } from './components/TourTooltip';
 import { supabase } from './lib/supabase';
 import AuthModal from './components/AuthModal';
 import UserMenu from './components/UserMenu';
+import AdminDashboard from './components/AdminDashboard';
+import { databaseService, CloudWebSlide } from './lib/database.service';
 
 const PROMPT_EXAMPLES = [
   "Misal: Buat WebSlide mendalam tentang sejarah Kopi Luwak di Indonesia...",
@@ -200,21 +202,18 @@ function App() {
   const [processStatus, setProcessStatus] = useState<'idle' | 'extracting' | 'analyzing' | 'generating' | 'done' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [generatedHtml, setGeneratedHtml] = useState('');
+  const [placeholderText, setPlaceholderText] = useState('');
   const [slideData, setSlideData] = useState<WebSlideJson | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('webslide_theme') === 'dark');
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('webslide_theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
-  
-  // Deprecated/Hidden logic for SaaS
-  const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-  const [availableModels, setAvailableModels] = useState<GeminiModel[]>([]);
-  const [placeholderText, setPlaceholderText] = useState("");
   
   // Modular Workflow States
   const [currentStep, setCurrentStep] = useState<'category' | 'upload' | 'skeleton' | 'generating' | 'done'>('category');
@@ -228,6 +227,8 @@ function App() {
   const [extractedText, setExtractedText] = useState('');
   const [currentProgressText, setCurrentProgressText] = useState('');
   const [progressPercent, setProgressPercent] = useState(0);
+  const [cloudHistory, setCloudHistory] = useState<CloudWebSlide[]>([]);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history'>('dashboard');
   
   // Input States
   const [inputMode, setInputMode] = useState<'quick' | 'advanced'>('quick');
@@ -249,23 +250,68 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (session?.user) {
-      fetchProfile();
-    } else {
-      setProfile(null);
-    }
-  }, [session]);
-
-  const fetchProfile = async () => {
+  const fetchProfile = async (activeSession?: any) => {
+    const s = activeSession ?? session;
+    if (!s?.user) return;
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', s.user.id)
       .single();
     
-    if (data) setProfile(data);
-    if (error) console.error('Error fetching profile:', error);
+    if (data) {
+      console.log('[WebSlide] Profile fetched:', data);
+      setProfile(data);
+    }
+    if (error) console.error('[WebSlide] Error fetching profile:', error);
+  };
+
+  const fetchCloudHistory = async () => {
+    if (!session?.user) return;
+    try {
+      const history = await databaseService.fetchHistory(session.user.id);
+      setCloudHistory(history);
+    } catch (err) {
+      console.error('Error loading cloud history:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (session?.user) {
+      // Pass session explicitly to avoid stale closure bug
+      fetchProfile(session);
+      fetchCloudHistory();
+
+      // Real-time subscription to profile changes
+      const channel = supabase
+        .channel(`profile:${session.user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${session.user.id}`
+          },
+          (payload) => {
+            console.log('[WebSlide] Profile changed in real-time:', payload.new);
+            setProfile(payload.new);
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    } else {
+      setProfile(null);
+      setCloudHistory([]);
+    }
+  }, [session]);
+
+  const refreshDashboard = async () => {
+    await fetchProfile(session);
+    await fetchCloudHistory();
   };
 
   // History state
@@ -295,6 +341,7 @@ function App() {
   }, []);
 
   const resetFlow = () => {
+    setActiveTab('dashboard');
     setCurrentStep('category');
     setProcessStatus('idle');
     setQuickPrompt('');
@@ -317,11 +364,11 @@ function App() {
   };
 
   const handleRegenerateImage = async (slideIndex: number) => {
-    if (!slideData || !apiKey) return;
+    if (!slideData) return;
     try {
       const slide = slideData.slides[slideIndex];
-      const visualDesc = await generateVisualDescription(slide.title, slide.content[0], apiKey);
-      const imageUrl = await generateImageImagen4(visualDesc, apiKey);
+      const visualDesc = await generateVisualDescription(slide.title, slide.content[0]);
+      const imageUrl = await generateImageImagen4(visualDesc);
       if (imageUrl) {
         const newData = { ...slideData };
         newData.slides[slideIndex].imageUrl = imageUrl;
@@ -334,14 +381,14 @@ function App() {
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !apiKey) return;
+    if (!file) return;
     try {
       setIsProcessing(true);
       setProcessStatus('extracting');
       const { text } = await extractTextFromPDF(file);
       setExtractedText(text);
       setProcessStatus('analyzing');
-      const result = await identifyChapters(text, apiKey, selectedCategory);
+      const result = await identifyChapters(text, selectedCategory);
       setChapters(result.chapters);
       setSelectedChapters(result.chapters.map((c: any) => c.id));
       setSlideData({ title: result.title, author: result.author, course: result.course, slides: [], quiz: [] });
@@ -356,11 +403,20 @@ function App() {
   };
 
   const handleQuickGenerate = async () => {
-    if (!apiKey) return;
+    if (!quickPrompt.trim()) return;
+    
+    // Preliminary check: At least 20 credits needed to start
+    const currentCredits = profile?.credits || 0;
+    if (profile?.role !== 'pro' && currentCredits < 20) {
+      setErrorMessage("Kredit Anda tidak cukup. Minimal 20 kredit diperlukan untuk memulai.");
+      setProcessStatus('error');
+      return;
+    }
+
     try {
       setIsProcessing(true);
       setProcessStatus('analyzing');
-      const result = await generateSkeletonFromPrompt(quickPrompt, apiKey, selectedCategory);
+      const result = await generateSkeletonFromPrompt(quickPrompt, selectedCategory);
       setChapters(result.chapters);
       setSelectedChapters(result.chapters.map((c: any) => c.id));
       setSlideData({ title: result.title, author: result.author, course: result.course, slides: [], quiz: [] });
@@ -374,8 +430,26 @@ function App() {
     }
   };
 
+  const calculateEstimatedCost = () => {
+    const slideCount = chapters.filter(c => selectedChapters.includes(c.id)).length * 2; // Est ratio
+    let total = slideCount * 10; // 10 per slide
+    if (isImageGenEnabled) total += (slideCount * 100); // 100 per image
+    if (includeQuiz) total += 50; // Flat quiz fee
+    return total;
+  };
+
   const startGeneration = async () => {
-    if (selectedChapters.length === 0 || !apiKey) return;
+    if (selectedChapters.length === 0) return;
+    
+    const estimatedCost = calculateEstimatedCost();
+    const currentCredits = profile?.credits || 0;
+
+    if (profile?.role !== 'pro' && currentCredits < estimatedCost) {
+      setErrorMessage(`Kredit Anda tidak cukup. Estimasi butuh ${estimatedCost} kredit.`);
+      setProcessStatus('error');
+      return;
+    }
+
     try {
       setIsProcessing(true);
       setProcessStatus('generating');
@@ -390,7 +464,7 @@ function App() {
         const chapter = selectedChapterObjects[i];
         setCurrentProgressText(`Memproses Bab ${i+1}/${selectedChapterObjects.length}...`);
         setProgressPercent(Math.floor(((i+1)/selectedChapterObjects.length)*100));
-        const chapterSlides = await generateChapterSlides(chapter, extractedText, apiKey, selectedCategory);
+        const chapterSlides = await generateChapterSlides(chapter, extractedText, selectedCategory);
         allSlides = [...allSlides, ...chapterSlides];
       }
 
@@ -401,10 +475,36 @@ function App() {
         slides: allSlides,
         quiz: []
       };
+      
+      const html = generateWebSlideHtml(finalData, selectedTemplate);
       setSlideData(finalData);
-      setGeneratedHtml(generateWebSlideHtml(finalData, selectedTemplate));
-      saveToHistory(finalData, generatedHtml, selectedTemplate);
-      refreshHistory();
+      setGeneratedHtml(html);
+      
+      // Post-Generation actions
+      if (session?.user) {
+        // Save to Cloud
+        await databaseService.saveWebSlide({
+          userId: session.user.id,
+          title: finalData.title,
+          author: finalData.author,
+          course: finalData.course,
+          data: finalData,
+          html: html,
+          templateId: selectedTemplate
+        });
+        
+        // Deduct Credits if not PRO
+        if (profile?.role !== 'pro') {
+          await databaseService.deductCredits(session.user.id, estimatedCost);
+        }
+        
+        await refreshDashboard();
+      } else {
+        // Fallback to local
+        saveToHistory(finalData, html, selectedTemplate);
+        refreshHistory();
+      }
+
       setProcessStatus('done');
       setCurrentStep('done');
       setIsProcessing(false);
@@ -442,8 +542,8 @@ function App() {
           {!isSidebarCollapsed && (<div><h1 className="text-xl font-black leading-tight">WebSlide</h1><p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">SaaS Engine</p></div>)}
         </div>
         <nav className="flex-1 px-4 space-y-1">
-          <SidebarItem icon={<Layout size={20} />} label={isSidebarCollapsed ? "" : "Dashboard"} active={currentStep !== 'done'} onClick={resetFlow} isDark={isDarkMode} />
-          <SidebarItem icon={<History size={20} />} label={isSidebarCollapsed ? "" : "Riwayat"} isDark={isDarkMode} />
+          <SidebarItem icon={<Layout size={20} />} label={isSidebarCollapsed ? "" : "Dashboard"} active={activeTab === 'dashboard'} onClick={resetFlow} isDark={isDarkMode} />
+          <SidebarItem icon={<History size={20} />} label={isSidebarCollapsed ? "" : "Riwayat"} active={activeTab === 'history'} onClick={() => setActiveTab('history')} isDark={isDarkMode} />
         </nav>
       </aside>
 
@@ -455,124 +555,217 @@ function App() {
               <p className={`${isDarkMode ? 'text-slate-400' : 'text-slate-500'} text-sm font-medium mt-1`}>Siap untuk membuat WebSlide yang memukau hari ini?</p>
             </div>
             <div className="flex items-center gap-4">
-               {profile?.role === 'pro' && (<div className="flex items-center gap-2 bg-indigo-600/10 text-indigo-400 px-4 py-2 rounded-2xl border border-indigo-500/20"><Crown size={16} /><span className="text-[10px] font-black uppercase">PRO</span></div>)}
-               <button 
+               {profile?.role === 'pro' ? (
+                 <div className="flex items-center gap-2 bg-indigo-600/10 text-indigo-400 px-4 py-2 rounded-2xl border border-indigo-500/20"><Crown size={16} /><span className="text-[10px] font-black uppercase">PRO</span></div>
+               ) : (
+                 <div className={`flex items-center gap-2 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100'} px-4 py-2 rounded-2xl border text-xs font-bold`}>
+                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                   <span className={isDarkMode ? 'text-slate-400' : 'text-slate-500'}>{profile?.credits || 0} Kredit</span>
+                 </div>
+               )}
+               <div className="flex items-center gap-3">
+                {profile?.role === 'admin' && (
+                  <button 
+                    onClick={() => setShowAdminDashboard(true)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all ${isDarkMode ? 'bg-indigo-600/10 border-indigo-500/30 text-indigo-400 hover:bg-indigo-600/20' : 'bg-indigo-50 border-indigo-100 text-indigo-600 hover:bg-indigo-100'}`}
+                  >
+                    <Shield size={18} />
+                    <span className="text-xs font-black uppercase tracking-wider">Admin</span>
+                  </button>
+                )}
+                <button 
                   onClick={() => setIsDarkMode(!isDarkMode)}
                   className={`w-12 h-12 rounded-2xl border flex items-center justify-center transition-all ${isDarkMode ? 'bg-slate-800 border-slate-700 text-yellow-400 hover:bg-slate-750' : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50'}`}
                >
                  {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                </button>
                {session && <UserMenu user={session.user} profile={profile} />}
+               </div>
             </div>
           </header>
 
           <div className="flex flex-col gap-10">
-            <div className={`${isDarkMode ? 'bg-slate-800/40 border-slate-700' : 'bg-white/40 border-white'} backdrop-blur-md p-5 rounded-[32px] border max-w-4xl shadow-sm`}>
-              <div className="flex justify-between px-4">
-                <StepperItem num={1} label="Mulai" active={['category', 'upload'].includes(currentStep)} done={['skeleton', 'generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
-                <StepperItem num={2} label="Outline" active={currentStep === 'skeleton'} done={['generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
-                <StepperItem num={3} label="Magic" active={currentStep === 'generating'} done={currentStep === 'done'} isDark={isDarkMode} />
-                <StepperItem num={4} label="Selesai" active={currentStep === 'done'} done={false} isDark={isDarkMode} />
-              </div>
-            </div>
-
-            {currentStep === 'category' && (
-              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative`}>
-                <div className="flex flex-col gap-6">
-                  <div>
-                    <h3 className="text-xl font-black mb-2">Pilih Mode berikut untuk Generate WebSlide 🪄</h3>
-                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Tentukan sumber materi Anda dan kategori yang sesuai.</p>
-                  </div>
-                  
-                  <div className="flex flex-col lg:flex-row gap-4">
-                    <div className="flex flex-1 flex-col sm:flex-row gap-3">
-                      <ModeCard icon={<Zap size={18} />} title="Quick Mode" desc="Input teks atau judul singkat" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" isDark={isDarkMode} />
-                      <ModeCard icon={<FileUp size={18} />} title="Mode Lanjutan" desc="Generate dari file PDF" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} isDark={isDarkMode} />
-                    </div>
-                    <div className="flex shrink-0">
-                      <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} isDark={isDarkMode} />
-                    </div>
+            {activeTab === 'dashboard' ? (
+              <>
+                <div className={`${isDarkMode ? 'bg-slate-800/40 border-slate-700' : 'bg-white/40 border-white'} backdrop-blur-md p-5 rounded-[32px] border max-w-4xl shadow-sm`}>
+                  <div className="flex justify-between px-4">
+                    <StepperItem num={1} label="Mulai" active={['category', 'upload'].includes(currentStep)} done={['skeleton', 'generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
+                    <StepperItem num={2} label="Outline" active={currentStep === 'skeleton'} done={['generating', 'done'].includes(currentStep)} isDark={isDarkMode} />
+                    <StepperItem num={3} label="Magic" active={currentStep === 'generating'} done={currentStep === 'done'} isDark={isDarkMode} />
+                    <StepperItem num={4} label="Selesai" active={currentStep === 'done'} done={false} isDark={isDarkMode} />
                   </div>
                 </div>
 
-                <div className="mt-8 space-y-6">
-                  {inputMode === 'advanced' ? (
-                    <div onClick={triggerFileUpload} className={`${isDarkMode ? 'border-slate-800 bg-slate-800/20 hover:bg-slate-800/40 hover:border-indigo-500/50' : 'border-slate-200 bg-slate-50/50 hover:bg-indigo-50/30 hover:border-indigo-400'} border-2 border-dashed rounded-[32px] p-16 flex flex-col items-center justify-center gap-4 cursor-pointer transition-all`}>
-                      <FileUp size={40} className={isDarkMode ? 'text-slate-600' : 'text-slate-300'} /><p className="font-bold text-center">Klik atau seret PDF ke sini</p>
-                      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
-                    </div>
-                  ) : (
-                    <textarea 
-                      value={quickPrompt} onChange={(e) => setQuickPrompt(e.target.value)} placeholder={placeholderText} 
-                      className={`w-full ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-900 placeholder:text-slate-400'} border rounded-3xl px-6 py-5 focus:ring-2 focus:ring-indigo-500/20 min-h-[160px] text-sm font-medium transition-all outline-none`} 
-                    />
-                  )}
-                  <div className={`flex flex-col sm:flex-row justify-between items-center pt-8 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'} gap-6`}>
-                    <div className="flex gap-10">
-                      <ToggleItem icon={<Palette size={18} />} label="Ilustrasi AI" enabled={isImageGenEnabled} onChange={setIsImageGenEnabled} isDark={isDarkMode} />
-                      <ToggleItem icon={<List size={18} />} label="Kuis" enabled={includeQuiz} onChange={setIncludeQuiz} isDark={isDarkMode} />
-                    </div>
-                    <button id="tour-generate-btn" disabled={isProcessing || (inputMode === 'quick' && !quickPrompt)} onClick={handleQuickGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 flex items-center gap-3 transition-all transform active:scale-[0.98]">
-                      {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Generate WebSlide
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {currentStep === 'skeleton' && (
-              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border animate-in slide-in-from-bottom-4`}>
-                <h3 className="text-xl font-black mb-2">Outline Telah Siap ✨</h3>
-                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Pilih bab yang ingin dibuatkan slide-nya.</p>
-                <div className="space-y-3 mb-10">
-                  {chapters.map((chapter, idx) => (
-                    <button 
-                      key={chapter.id} onClick={() => { setSelectedChapters(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id]); }}
-                      className={`w-full p-5 rounded-2xl border-2 transition-all flex items-center gap-4 ${selectedChapters.includes(chapter.id) ? (isDarkMode ? 'border-indigo-600 bg-indigo-600/10' : 'border-indigo-600 bg-indigo-50') : (isDarkMode ? 'border-slate-800 bg-slate-800/30' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100')}`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-white text-slate-300')}`}>
-                        {selectedChapters.includes(chapter.id) ? <Check size={18} /> : (idx + 1)}
+                {currentStep === 'category' && (
+                  <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative`}>
+                    <div className="flex flex-col gap-6">
+                      <div>
+                        <h3 className="text-xl font-black mb-2">Pilih Mode berikut untuk Generate WebSlide 🪄</h3>
+                        <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Tentukan sumber materi Anda dan kategori yang sesuai.</p>
                       </div>
-                      <h4 className="font-bold text-sm">{chapter.title}</h4>
-                    </button>
-                  ))}
-                </div>
-                <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'}`}>
-                  <button onClick={resetFlow} className="text-sm font-semibold text-slate-500 hover:text-slate-400 transition-colors">Batal & Reset</button>
-                  <button onClick={startGeneration} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl flex items-center gap-3 hover:bg-slate-800 transition-all">
-                    Generate Slides <ArrowRight size={18} />
-                  </button>
-                </div>
-              </div>
-            )}
+                      
+                      <div className="flex flex-col lg:flex-row gap-4">
+                        <div className="flex flex-1 flex-col sm:flex-row gap-3">
+                          <ModeCard icon={<Zap size={18} />} title="Quick Mode" desc="Input teks atau judul singkat" active={inputMode === 'quick'} onClick={() => setInputMode('quick')} id="tour-quick-input" isDark={isDarkMode} />
+                          <ModeCard icon={<FileUp size={18} />} title="Mode Lanjutan" desc="Generate dari file PDF" active={inputMode === 'advanced'} onClick={() => setInputMode('advanced')} isDark={isDarkMode} />
+                        </div>
+                        <div className="flex shrink-0">
+                          <CategoryDropdown value={selectedCategory} onChange={setSelectedCategory} isDark={isDarkMode} />
+                        </div>
+                      </div>
+                    </div>
 
-            {currentStep === 'generating' && (
-              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm flex flex-col items-center justify-center text-center border`}>
-                <div className="w-24 h-24 border-8 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8"></div>
-                <h3 className="text-2xl font-black mb-4">AI Sedang Bekerja...</h3>
-                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Kami sedang merangkai konten WebSlide Anda secara real-time.</p>
-                <div className={`w-full max-w-md ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'} h-2 rounded-full overflow-hidden mb-4`}>
-                  <div className="bg-indigo-600 h-full transition-all duration-500 shadow-lg shadow-indigo-600/50" style={{ width: `${progressPercent}%` }}></div>
-                </div>
-                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest animate-pulse">{currentProgressText}</p>
-              </div>
-            )}
+                    <div className="mt-8 space-y-6">
+                      {inputMode === 'advanced' ? (
+                        <div onClick={triggerFileUpload} className={`${isDarkMode ? 'border-slate-800 bg-slate-800/20 hover:bg-slate-800/40 hover:border-indigo-500/50' : 'border-slate-200 bg-slate-50/50 hover:bg-indigo-50/30 hover:border-indigo-400'} border-2 border-dashed rounded-[32px] p-16 flex flex-col items-center justify-center gap-4 cursor-pointer transition-all`}>
+                          <FileUp size={40} className={isDarkMode ? 'text-slate-600' : 'text-slate-300'} /><p className="font-bold text-center">Klik atau seret PDF ke sini</p>
+                          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf" className="hidden" />
+                        </div>
+                      ) : (
+                        <textarea 
+                          value={quickPrompt} onChange={(e) => setQuickPrompt(e.target.value)} placeholder={placeholderText} 
+                          className={`w-full ${isDarkMode ? 'bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-600' : 'bg-slate-50 border-slate-100 text-slate-900 placeholder:text-slate-400'} border rounded-3xl px-6 py-5 focus:ring-2 focus:ring-indigo-500/20 min-h-[160px] text-sm font-medium transition-all outline-none`} 
+                        />
+                      )}
+                      <div className={`flex flex-col sm:flex-row justify-between items-center pt-8 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'} gap-6`}>
+                        <div className="flex gap-10">
+                          <ToggleItem icon={<Palette size={18} />} label="Ilustrasi AI" enabled={isImageGenEnabled} onChange={setIsImageGenEnabled} isDark={isDarkMode} />
+                          <ToggleItem icon={<List size={18} />} label="Kuis" enabled={includeQuiz} onChange={setIncludeQuiz} isDark={isDarkMode} />
+                        </div>
+                        <button id="tour-generate-btn" disabled={isProcessing || (inputMode === 'quick' && !quickPrompt)} onClick={handleQuickGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 flex items-center gap-3 transition-all transform active:scale-[0.98]">
+                          {isProcessing ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />} Generate WebSlide
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {currentStep === 'done' && (
-              <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm text-center animate-in zoom-in-95 border`}>
-                <div className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><CheckCircle2 size={40} /></div>
-                <h3 className="text-3xl font-black mb-2">WebSlide Berhasil Dibuat!</h3>
-                <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-10 font-medium`}>Klik Preview untuk melihat presentasi interaktif dan export hasilnya.</p>
-                <div className="flex justify-center gap-4">
-                  <button onClick={() => setShowPreview(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 transition-all transition-all transform active:scale-[0.98]">Lihat Preview</button>
-                  <button onClick={resetFlow} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} px-10 py-4 rounded-2xl font-black transition-all transform active:scale-[0.98]`}>Buat Baru</button>
+                {currentStep === 'skeleton' && (
+                  <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border animate-in slide-in-from-bottom-4`}>
+                    <h3 className="text-xl font-black mb-2">Outline Telah Siap ✨</h3>
+                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Pilih bab yang ingin dibuatkan slide-nya.</p>
+                    <div className="space-y-3 mb-10">
+                      {chapters.map((chapter, idx) => (
+                        <button 
+                          key={chapter.id} onClick={() => { setSelectedChapters(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id]); }}
+                          className={`w-full p-5 rounded-2xl border-2 transition-all flex items-center gap-4 ${selectedChapters.includes(chapter.id) ? (isDarkMode ? 'border-indigo-600 bg-indigo-600/10' : 'border-indigo-600 bg-indigo-50') : (isDarkMode ? 'border-slate-800 bg-slate-800/30' : 'border-slate-50 bg-slate-50/50 hover:bg-slate-100')}`}
+                        >
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedChapters.includes(chapter.id) ? 'bg-indigo-600 text-white' : (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-white text-slate-300')}`}>
+                            {selectedChapters.includes(chapter.id) ? <Check size={18} /> : (idx + 1)}
+                          </div>
+                          <h4 className="font-bold text-sm">{chapter.title}</h4>
+                        </button>
+                      ))}
+                    </div>
+                    <div className={`flex justify-between items-center pt-6 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-50'}`}>
+                      <button onClick={resetFlow} className="text-sm font-semibold text-slate-500 hover:text-slate-400 transition-colors">Batal & Reset</button>
+                      <button onClick={startGeneration} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-black shadow-xl flex items-center gap-3 hover:bg-slate-800 transition-all">
+                        Generate Slides <ArrowRight size={18} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {currentStep === 'generating' && (
+                  <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm flex flex-col items-center justify-center text-center border`}>
+                    <div className="w-24 h-24 border-8 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mb-8"></div>
+                    <h3 className="text-2xl font-black mb-4">AI Sedang Bekerja...</h3>
+                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-8 text-sm font-medium`}>Kami sedang merangkai konten WebSlide Anda secara real-time.</p>
+                    <div className={`w-full max-w-md ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'} h-2 rounded-full overflow-hidden mb-4`}>
+                      <div className="bg-indigo-600 h-full transition-all duration-500 shadow-lg shadow-indigo-600/50" style={{ width: `${progressPercent}%` }}></div>
+                    </div>
+                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest animate-pulse">{currentProgressText}</p>
+                  </div>
+                )}
+
+                {currentStep === 'done' && (
+                  <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-16 rounded-[40px] shadow-sm text-center animate-in zoom-in-95 border`}>
+                    <div className="w-20 h-20 bg-emerald-500/10 text-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6"><CheckCircle2 size={40} /></div>
+                    <h3 className="text-3xl font-black mb-2">WebSlide Berhasil Dibuat!</h3>
+                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-10 font-medium`}>Klik Preview untuk melihat presentasi interaktif dan export hasilnya.</p>
+                    <div className="flex justify-center gap-4">
+                      <button onClick={() => setShowPreview(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-12 py-4 rounded-2xl font-black shadow-xl shadow-indigo-600/20 transition-all transition-all transform active:scale-[0.98]">Lihat Preview</button>
+                      <button onClick={resetFlow} className={`${isDarkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'} px-10 py-4 rounded-2xl font-black transition-all transform active:scale-[0.98]`}>Buat Baru</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex justify-between items-end mb-8">
+                  <div>
+                    <h3 className="text-2xl font-black mb-1">Riwayat WebSlide 📚</h3>
+                    <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Akses kembali semua presentasi yang telah Anda buat di Cloud.</p>
+                  </div>
                 </div>
+
+                {cloudHistory.length === 0 ? (
+                  <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-100'} p-20 rounded-[40px] text-center border border-dashed`}>
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-300"><History size={32} /></div>
+                    <p className="text-slate-400 font-bold">Belum ada riwayat di Cloud.</p>
+                    <button onClick={resetFlow} className="mt-4 text-indigo-600 font-black text-sm hover:underline">Mulai Buat Sekarang</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {cloudHistory.map((item) => (
+                      <div key={item.id} className={`${isDarkMode ? 'bg-slate-900 border-slate-800 hover:border-indigo-500/50' : 'bg-white border-slate-100 hover:border-indigo-400'} p-6 rounded-[32px] border-2 transition-all group relative overflow-hidden`}>
+                        <div className="flex justify-between items-start mb-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isDarkMode ? 'bg-slate-800 text-indigo-400' : 'bg-indigo-50 text-indigo-600'}`}>
+                            <Presentation size={24} />
+                          </div>
+                          <div className="text-right">
+                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{formatRelativeTime(new Date(item.created_at).getTime())}</p>
+                             <div className={`text-[9px] px-2 py-1 rounded-full font-bold inline-block ${item.is_public ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-400/10 text-slate-400'}`}>
+                               {item.is_public ? 'PUBLIK' : 'PRIVATE'}
+                             </div>
+                          </div>
+                        </div>
+                        <h4 className="font-black text-sm mb-1 truncate pr-8">{item.title}</h4>
+                        <p className={`text-[11px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'} mb-6 line-clamp-1`}>{item.course || 'Tanpa Materi'}</p>
+                        
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              setSlideData(item.data);
+                              setGeneratedHtml(item.html);
+                              setSelectedTemplate(item.template_id);
+                              setShowPreview(true);
+                            }}
+                            className="flex-1 bg-indigo-600 text-white text-[11px] font-black py-3 rounded-xl shadow-lg shadow-indigo-600/10 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
+                          >
+                            <Play size={14} fill="currentColor" /> Buka
+                          </button>
+                          <button 
+                            onClick={async () => {
+                              if (confirm('Hapus slide ini secara permanen?')) {
+                                await databaseService.deleteWebSlide(item.id);
+                                await fetchCloudHistory();
+                              }
+                            }}
+                            className={`${isDarkMode ? 'bg-slate-800 text-slate-500 hover:bg-red-500/10 hover:text-red-500' : 'bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600'} p-3 rounded-xl transition-all`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       </main>
 
+      {/* Admin Dashboard Overlay */}
+      {showAdminDashboard && (
+        <AdminDashboard 
+          isDark={isDarkMode} 
+          onClose={() => setShowAdminDashboard(false)} 
+        />
+      )}
+
+      {/* Auth Modal Overlay */}
       <AuthModal isOpen={!isAuthLoading && !session} />
       {showTour && <TourTooltip steps={DASHBOARD_TOUR_STEPS} currentStep={0} totalSteps={2} globalStep={0} onNext={()=>{}} onBack={()=>{}} onSkip={()=>{}} isLast={true} />}
     </div>
@@ -580,4 +773,5 @@ function App() {
 }
 
 export default App;
+
 
