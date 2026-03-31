@@ -599,6 +599,12 @@ function App() {
                 {currentStep === 'category' && (
                   <div className={`${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-50'} p-10 rounded-[40px] shadow-sm border relative`}>
                     <div className="flex flex-col gap-6">
+                      {processStatus === 'error' && errorMessage && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl flex items-center gap-3 animate-in fade-in zoom-in slide-in-from-top-4">
+                          <AlertCircle size={20} className="shrink-0" />
+                          <p className="text-sm font-bold">{errorMessage}</p>
+                        </div>
+                      )}
                       <div>
                         <h3 className="text-xl font-black mb-2">Pilih Mode berikut untuk Generate WebSlide 🪄</h3>
                         <p className={`${isDarkMode ? 'text-slate-500' : 'text-slate-400'} text-sm font-medium`}>Tentukan sumber materi Anda dan kategori yang sesuai.</p>
