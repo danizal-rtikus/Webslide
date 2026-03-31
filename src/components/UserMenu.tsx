@@ -41,9 +41,9 @@ export default function UserMenu({ user, profile }: UserMenuProps) {
   const isAdmin = profile?.role === 'admin';
   const isPro = profile?.role === 'pro' || isAdmin;
 
-  // Placeholder URL for Mayar Payment
-  // The user should replace this with their actual Mayar Link
-  const MAYAR_PAYMENT_URL = "https://mayar.id/p/webslide-pro"; 
+  // Actual Mayar Payment Link from User
+  // We append ?user_id= so that potentially Mayar can track and send it back to our webhook
+  const MAYAR_PAYMENT_URL = `https://levelupskills.myr.id/pl/webslide-5000-kredit?user_id=${user?.id}`; 
 
   return (
     <div className="relative" ref={menuRef}>
@@ -103,14 +103,17 @@ export default function UserMenu({ user, profile }: UserMenuProps) {
           </a>
 
           {!isPro && (
-            <button 
+            <a 
+              href={MAYAR_PAYMENT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-black rounded-2xl transition-colors mt-2 ${isDark ? 'bg-indigo-900/20 text-indigo-400 hover:bg-indigo-900/40' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
             >
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${isDark ? 'bg-slate-800' : 'bg-white'}`}>
                 <Crown size={16} />
               </div>
               Upgrade to Pro
-            </button>
+            </a>
           )}
 
           <div className={`h-px my-2 mx-2 ${isDark ? 'bg-slate-800' : 'bg-slate-50'}`} />
